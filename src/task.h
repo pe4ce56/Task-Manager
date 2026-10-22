@@ -11,7 +11,6 @@ struct Task
     QString notes;
     bool completed = false;
 };
-
 enum class TaskStatusFilter
 {
     All,
