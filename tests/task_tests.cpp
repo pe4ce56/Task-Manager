@@ -5,6 +5,7 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFile>
@@ -12,11 +13,11 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QTableWidget>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include <QTextEdit>
 #include <QTemporaryDir>
 #include <QTimer>
-#include <QToolBar>
 #include <QtTest>
 
 class TaskTests : public QObject
@@ -31,6 +32,7 @@ private slots:
     void rejectCorruptFileWithoutReplacingLoadedTasks();
     void failedSaveRollsBackOperation();
     void mainWindowWorkflow();
+    void mainWindowFitsMinimumSize();
 };
 
 void TaskTests::addEditCompleteAndDelete()
@@ -147,23 +149,20 @@ void TaskTests::mainWindowWorkflow()
     const QString path = directory.filePath(QStringLiteral("tasks.json"));
     MainWindow window(path);
     window.show();
-    auto *toolbar = window.findChild<QToolBar *>();
-    auto *table = window.findChild<QTableWidget *>(QStringLiteral("taskTable"));
+    auto *list = window.findChild<QListWidget *>(QStringLiteral("taskList"));
     auto *search = window.findChild<QLineEdit *>(QStringLiteral("taskSearch"));
     auto *status = window.findChild<QComboBox *>(QStringLiteral("taskStatus"));
     auto *emptyState = window.findChild<QLabel *>(QStringLiteral("taskEmptyState"));
-    QVERIFY(toolbar && table && search && status && emptyState);
+    auto *add = window.findChild<QPushButton *>(QStringLiteral("addTask"));
+    auto *edit = window.findChild<QPushButton *>(QStringLiteral("editTask"));
+    auto *complete = window.findChild<QPushButton *>(QStringLiteral("toggleTask"));
+    auto *remove = window.findChild<QPushButton *>(QStringLiteral("deleteTask"));
+    auto *summary = window.findChild<QLabel *>(QStringLiteral("summary"));
+    QVERIFY(list && search && status && emptyState && add && edit && complete && remove && summary);
     QVERIFY(emptyState->isVisible());
-
-    auto action = [toolbar](const QString &label) {
-        for (QAction *candidate : toolbar->actions()) {
-            if (candidate->text() == label) return candidate;
-        }
-        return static_cast<QAction *>(nullptr);
-    };
-
-    QAction *add = action(QStringLiteral("Add task"));
-    QVERIFY(add);
+    QVERIFY(emptyState->text().contains(QStringLiteral("No tasks yet")));
+    QVERIFY(!edit->isEnabled() && !complete->isEnabled() && !remove->isEnabled());
+    QVERIFY(add->isVisible());
     QTimer::singleShot(0, [] {
         auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
         if (!dialog) qFatal("Add task dialog did not open");
@@ -181,13 +180,19 @@ void TaskTests::mainWindowWorkflow()
         notes->setPlainText(QStringLiteral("Bring the draft"));
         save->click();
     });
-    add->trigger();
-    QCOMPARE(table->rowCount(), 1);
-    QCOMPARE(table->item(0, 1)->text(), QStringLiteral("Plan review"));
+    add->click();
+    QCOMPARE(list->count(), 1);
+    QVERIFY(summary->text().contains(QStringLiteral("1 active")));
+    auto *firstRow = list->itemWidget(list->item(0));
+    QVERIFY(firstRow);
+    QCOMPARE(firstRow->findChild<QLabel *>(QStringLiteral("taskTitle"))->text(), QStringLiteral("Plan review"));
+    QCOMPARE(firstRow->findChild<QLabel *>(QStringLiteral("taskNotes"))->text(), QStringLiteral("Bring the draft"));
 
-    table->selectRow(0);
-    QAction *edit = action(QStringLiteral("Edit"));
-    QVERIFY(edit);
+    auto *rowTitle = firstRow->findChild<QLabel *>(QStringLiteral("taskTitle"));
+    QTest::mouseClick(rowTitle, Qt::LeftButton);
+    QTRY_VERIFY(edit->isEnabled());
+    QVERIFY(edit->isEnabled() && complete->isEnabled() && remove->isEnabled());
+    QVERIFY(window.findChild<QLabel *>(QStringLiteral("selectionHint"))->text().contains(QStringLiteral("Plan review")));
     QTimer::singleShot(0, [] {
         auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
         if (!dialog) qFatal("Edit task dialog did not open");
@@ -197,36 +202,67 @@ void TaskTests::mainWindowWorkflow()
         title->setText(QStringLiteral("Review revised plan"));
         buttons->button(QDialogButtonBox::Save)->click();
     });
-    edit->trigger();
-    QCOMPARE(table->item(0, 1)->text(), QStringLiteral("Review revised plan"));
+    edit->click();
+    QCOMPARE(list->itemWidget(list->item(0))->findChild<QLabel *>(QStringLiteral("taskTitle"))->text(), QStringLiteral("Review revised plan"));
 
     search->setText(QStringLiteral("draft"));
-    QCOMPARE(table->rowCount(), 1);
+    QCOMPARE(list->count(), 1);
     search->setText(QStringLiteral("not present"));
-    QCOMPARE(table->rowCount(), 0);
-    QVERIFY(emptyState->text().contains(QStringLiteral("No tasks match")));
+    QCOMPARE(list->count(), 0);
+    QVERIFY(emptyState->text().contains(QStringLiteral("No matching tasks")));
     search->clear();
-    table->item(0, 0)->setCheckState(Qt::Checked);
-    QCOMPARE(table->item(0, 0)->checkState(), Qt::Checked);
+    auto *completion = list->itemWidget(list->item(0))->findChild<QCheckBox *>(QStringLiteral("taskCompletion"));
+    QVERIFY(completion);
+    completion->click();
+    QTRY_VERIFY(summary->text().contains(QStringLiteral("1 completed")));
+    QVERIFY(list->itemWidget(list->item(0))->findChild<QLabel *>(QStringLiteral("taskTitle"))->property("completed").toBool());
     status->setCurrentIndex(1);
-    QCOMPARE(table->rowCount(), 0);
+    QCOMPARE(list->count(), 0);
     status->setCurrentIndex(2);
-    QCOMPARE(table->rowCount(), 1);
+    QCOMPARE(list->count(), 1);
+    list->setCurrentRow(0);
+    QCOMPARE(complete->text(), QStringLiteral("Reopen"));
 
-    table->selectRow(0);
-    QAction *remove = action(QStringLiteral("Delete"));
-    QVERIFY(remove);
     QTimer::singleShot(0, [] {
         auto *dialog = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
         if (!dialog) qFatal("Delete confirmation did not open");
         dialog->button(QMessageBox::Yes)->click();
     });
-    remove->trigger();
-    QCOMPARE(table->rowCount(), 0);
+    remove->click();
+    QCOMPARE(list->count(), 0);
 
     TaskStore reopened(path);
     QVERIFY(reopened.load());
     QVERIFY(reopened.tasks().isEmpty());
+}
+
+void TaskTests::mainWindowFitsMinimumSize()
+{
+    QTemporaryDir directory;
+    MainWindow window(directory.filePath(QStringLiteral("tasks.json")));
+    window.resize(560, 420);
+    window.show();
+    QCoreApplication::processEvents();
+
+    auto *add = window.findChild<QPushButton *>(QStringLiteral("addTask"));
+    auto *search = window.findChild<QLineEdit *>(QStringLiteral("taskSearch"));
+    auto *status = window.findChild<QComboBox *>(QStringLiteral("taskStatus"));
+    auto *list = window.findChild<QListWidget *>(QStringLiteral("taskList"));
+    auto *edit = window.findChild<QPushButton *>(QStringLiteral("editTask"));
+    auto *complete = window.findChild<QPushButton *>(QStringLiteral("toggleTask"));
+    auto *remove = window.findChild<QPushButton *>(QStringLiteral("deleteTask"));
+    QVERIFY(add && search && status && list && edit && complete && remove);
+    QCOMPARE(window.minimumSize(), QSize(560, 420));
+    QVERIFY(list->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff);
+
+    const QList<QWidget *> controls{add, search, status, edit, complete, remove};
+    for (QWidget *control : controls) {
+        QVERIFY2(control->isVisible(), qPrintable(control->objectName()));
+        const QRect bounds(control->mapTo(&window, QPoint(0, 0)), control->size());
+        QVERIFY2(window.rect().contains(bounds), qPrintable(control->objectName()));
+    }
+    const QRect listBounds(list->mapTo(&window, QPoint(0, 0)), list->size());
+    QVERIFY(window.rect().contains(listBounds));
 }
 
 QTEST_MAIN(TaskTests)

@@ -34,7 +34,7 @@ cmake --build build --parallel
 ./build/TaskManager.exe
 ```
 
-Use **Add task**, double-click a row to edit it, click its checkbox to complete or reopen it, and select a row before choosing **Delete**. `Ctrl+N` adds a task, `Enter` edits the selected task, and `Delete` removes it after confirmation. Search checks titles and notes as you type. The status menu filters all, active, or completed tasks.
+Use the **Add task** button to create a task. Select a task to enable the **Edit**, **Complete**/**Reopen**, and **Delete** actions below the list, or double-click a task to edit it. You can also click a task's checkbox to change its completion state. `Ctrl+N` adds a task, `Enter` edits the selected task, and `Delete` removes it after confirmation. Search checks titles and notes as you type, and the status filter shows all, active, or completed tasks. The task summary shows active and completed totals. The window can be resized down to 560 × 420 logical pixels.
 
 Tasks are stored in `%LOCALAPPDATA%\TaskManager\tasks.json`. The file is written atomically. If it cannot be read or written, the app reports the problem and preserves the existing data. For a portable copy, close the app and back up that file.
 
@@ -44,4 +44,4 @@ Tasks are stored in `%LOCALAPPDATA%\TaskManager\tasks.json`. The file is written
 ctest --test-dir build --output-on-failure
 ```
 
-Tests cover task operations, blank-title validation, search and status filtering, persistence after reopening the store, preservation of data when a task file is malformed or cannot be written, and a Qt window workflow through its add, edit, completion, filtering, and delete controls.
+Tests cover task operations, blank-title validation, search and status filtering, persistence after reopening the store, preservation of data when a task file is malformed or cannot be written, and a Qt window workflow through its add, edit, completion, filtering, selection, empty-state, and delete controls.
