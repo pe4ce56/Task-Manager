@@ -7,7 +7,8 @@
 class QComboBox;
 class QLabel;
 class QLineEdit;
-class QTableWidget;
+class QListWidget;
+class QPushButton;
 
 class MainWindow : public QMainWindow
 {
@@ -22,7 +23,7 @@ private slots:
     void editSelectedTask();
     void deleteSelectedTask();
     void toggleSelectedTask();
-    void taskCellChanged(int row, int column);
+    void toggleTask(const QUuid &id, bool completed);
 
 private:
     QUuid selectedTaskId() const;
@@ -31,8 +32,12 @@ private:
     TaskStore m_store;
     QLineEdit *m_search = nullptr;
     QComboBox *m_status = nullptr;
-    QTableWidget *m_table = nullptr;
+    QListWidget *m_tasks = nullptr;
     QLabel *m_emptyState = nullptr;
-    QLabel *m_count = nullptr;
+    QLabel *m_summary = nullptr;
+    QLabel *m_selectionHint = nullptr;
+    QPushButton *m_editButton = nullptr;
+    QPushButton *m_completeButton = nullptr;
+    QPushButton *m_deleteButton = nullptr;
     bool m_storageAvailable = false;
 };
